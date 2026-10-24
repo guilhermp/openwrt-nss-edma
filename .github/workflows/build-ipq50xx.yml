@@ -92,7 +92,6 @@ jobs:
             echo "| group | memory | boards |"
             echo "|---|---|---|"
             echo "| std | 512 MB / 1 GB | $(boards std)|"
-            echo "| 256m | 256 MB | $(boards 256m)|"
           } >release_notes.md
           gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
             --title "$tag" --notes-file release_notes.md >&2
@@ -109,7 +108,7 @@ jobs:
       fail-fast: false
       matrix:
         # One group = one ath11k/nss-drv memory profile, which is image-wide.
-        group: [std, 256m]
+        group: [std]
     env:
       GH_TOKEN: ${{ github.token }}
       GROUP: ${{ matrix.group }}
@@ -363,7 +362,7 @@ jobs:
           set -euo pipefail
           cd site
           for d in "${TAG}"/packages-*; do mv "$d" "${TAG}/${d##*/packages-}"; done
-          for g in std 256m; do
+          for g in std; do
             [[ -f "${TAG}/${g}/packages.adb" ]] || { echo "::error::${TAG}/${g} has no package index"; exit 1; }
           done
           # keep the newest KEEP build directories; the tag is a date, so name order is time order
@@ -379,7 +378,7 @@ jobs:
             echo "An image lists its own; kernel modules only install on an image from the same build."
             echo
             for t in $(find . -maxdepth 1 -type d -printf '%f\n' | grep -E "$TAG_RE" | sort -r); do
-              echo "- ${t}: [std](${t}/std/packages.adb), [256m](${t}/256m/packages.adb)," \
+              echo "- ${t}: [std](${t}/std/packages.adb)," \
                 "[release](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${t})"
             done
           } >index.md
