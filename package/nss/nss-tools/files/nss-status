@@ -241,22 +241,32 @@ done
 # wifili stats file has one block per SoC ("INTERNAL: <soc>" for the built-in
 # radio, "ATTACH <n>: <chip>" for a PCIe one) and one block per PDEV inside it.
 # The built-in SoC prints PDEVs with no radio behind them as all zeros, so a
-# row that is zero both ways is left out. This is
+# row that is zero all ways is left out. This is
 # the Wi-Fi side of the port table above: a LAN client on Wi-Fi never touches
 # the switch port, so without it a fully offloaded Wi-Fi download reads as an
-# idle router. The driver spells the rx counter "deliverd".
+# idle router. The driver spells the rx counter "deliverd". It counts only
+# frames handed to an AP or STA interface: an offloaded 802.11s link passes
+# its frames from the REO ring straight to the mesh node, so a radio carrying
+# just a mesh link reads 0 there. reo_reaped counts every frame off the ring.
 wifili_radios=
 if [ "$wifi_offload" = 1 ] && [ -r "$DRV/wifili" ]; then
 	wifili_radios=$(awk '
 		/<<+ *INTERNAL: / { soc = $0; sub(/.*INTERNAL: */, "", soc); sub(/ *>.*/, "", soc) }
 		/<<+ *ATTACH [0-9]+: / { soc = $0; sub(/.*ATTACH [0-9]+: */, "", soc); sub(/ *>.*/, "", soc) }
 		/<<+ *PDEV [0-9]+ / { pdev = $0; sub(/.*PDEV */, "", pdev); sub(/ *>.*/, "", pdev) }
-		/_tx_sent_count[ \t]*=/ || /_rx_deliverd[ \t]*=/ {
+		/_tx_sent_count[ \t]*=/ || /_rx_deliverd[ \t]*=/ || /_reo_reaped[ \t]*=/ {
 			k = soc "/" pdev
 			if (!(k in seen)) { seen[k] = 1; order[n++] = k }
-			if ($1 ~ /_tx_sent_count$/) tx[k] = $3; else rx[k] = $3
+			if ($1 ~ /_tx_sent_count$/) tx[k] = $3
+			else if ($1 ~ /_reo_reaped$/) reo[k] = $3
+			else rx[k] = $3
 		}
-		END { for (i = 0; i < n; i++) if (tx[order[i]] + rx[order[i]] > 0) print order[i], tx[order[i]] + 0, rx[order[i]] + 0 }
+		END {
+			for (i = 0; i < n; i++) {
+				k = order[i]
+				if (tx[k] + rx[k] + reo[k] > 0) print k, tx[k] + 0, rx[k] + 0, reo[k] + 0
+			}
+		}
 	' "$DRV/wifili" 2>/dev/null)
 fi
 
@@ -395,9 +405,9 @@ if [ "$JSON" = 1 ]; then
 		printf '{"netdev":"%s","carrier":%s,"tx_total":%s,"rx_total":%s},' "$nd" "$car" "$ttx" "$trx"
 	done)
 	djson="[${djson%,}]"
-	wjson=$(echo "$wifili_radios" | while read -r radio wtx wrx; do
+	wjson=$(echo "$wifili_radios" | while read -r radio wtx wrx wreo; do
 		[ -n "$radio" ] || continue
-		printf '{"radio":"%s","tx_sent":%s,"rx_delivered":%s},' "$radio" "$wtx" "$wrx"
+		printf '{"radio":"%s","tx_sent":%s,"rx_delivered":%s,"rx_reaped":%s},' "$radio" "$wtx" "$wrx" "$wreo"
 	done)
 	wjson="[${wjson%,}]"
 
@@ -612,11 +622,13 @@ case "$wifi_offload" in
 esac
 if [ -n "$wifili_radios" ]; then
 	echo "               firmware Wi-Fi data path, packets since boot, per radio:"
-	printf "    %-20s %12s %14s\n" "radio/pdev" "tx sent" "rx delivered"
-	echo "$wifili_radios" | while read -r radio wtx wrx; do
+	printf "    %-20s %12s %12s %14s\n" "radio/pdev" "tx sent" "rx (REO)" "rx delivered"
+	echo "$wifili_radios" | while read -r radio wtx wrx wreo; do
 		[ -n "$radio" ] || continue
-		printf "    %-20s %12s %14s\n" "$radio" "$wtx" "$wrx"
+		printf "    %-20s %12s %12s %14s\n" "$radio" "$wtx" "$wreo" "$wrx"
 	done
+	[ "$mesh_vdev" = 1 ] &&
+		echo "    (rx delivered counts AP/STA frames only; 802.11s mesh frames go from REO to the mesh node)"
 fi
 [ -n "$fw_mem_modes" ] && echo "  fw mem mode:$fw_mem_modes (from the device tree)"
 if [ "$sqm_active" = 1 ]; then
