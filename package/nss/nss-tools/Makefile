@@ -55,7 +55,6 @@ define Package/nss-tools-dwmac
 	+TARGET_qualcommax_ipq50xx:kmod-qca-dwmac-nss +kmod-qca-nss-drv \
 	+kmod-qca-nss-ecm +kmod-qca-nss-drv-vlan-mgr \
 	+TARGET_qualcommax_ipq50xx:kmod-qca8337-nss \
-	+TARGET_qualcommax_ipq50xx:kmod-rtl8367s-nss \
 	+TARGET_qualcommax_ipq50xx:kmod-qca-dsa-nss +ip-full
   CONFLICTS:=nss-tools
   PKGARCH:=all
