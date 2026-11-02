@@ -1,99 +1,58 @@
-# OpenWrt with NSS hardware offload for IPQ50xx (IPQ5018)
+# OpenWrt NSS — Linksys MX Series (SPNMX56 & MX2000)
 
-This is OpenWrt main with Qualcomm NSS hardware offload for IPQ5018
-routers. The NSS firmware runs on top of the upstream `stmmac` ethernet
-driver on kernel 6.18, and the switch keeps its DSA driver. It does not use
-the out-of-tree `qca-nss-dp` and `qca-ssdk` drivers.
+A downstream distribution of **[kuncy7/openwrt-nss-edma](https://github.com/kuncy7/openwrt-nss-edma)**, focused and hardened specifically for the **Linksys SPNMX56** and **Linksys MX2000** (Qualcomm IPQ5018 WiSoC).
 
-Offloaded: IPv4 NAT and routing through ECM, PPPoE, 802.1Q VLAN and
-VLAN-aware bridges, the NSS qdiscs for SQM, and ath11k Wi-Fi offload. It is
-validated on the GL.iNet GL-B3000 and the TP-Link Archer AX55 v1, and users
-run it on more IPQ5018 boards.
+Maintained by **@guilhermp** with the help of **Gemini 4.0** and **Claude Opus 5.5**.
 
-Everything else is in **[README.ipq50xx.md](README.ipq50xx.md)**: what the
-commits are, how to build, how the plane comes up, the two topologies, the
-support matrix, the boards, and how to port another IPQ5018 board.
+---
 
-- Prebuilt images are on the
-  [Releases page](https://github.com/kuncy7/openwrt-nss-edma/releases).
-- The NSS packages (driver, ECM, qdiscs, firmware) are in the
-  [kuncy7/nss-packages](https://github.com/kuncy7/nss-packages/tree/ipq50xx-rebase)
-  feed, branch `ipq50xx-rebase`. `feeds.conf.default` already names it.
-- Discussion and test reports are in the
-  [forum thread](https://forum.openwrt.org/t/ipq5018-nss-offload-on-kernel-6-18-with-the-upstream-ethernet-stack-gl-b3000/253014).
+## Upstream & Lineage
 
-## Where this tree comes from
+This tree builds upon [kuncy7/openwrt-nss-edma](https://github.com/kuncy7/openwrt-nss-edma), which ported the Qualcomm NSS data plane (`qca-nss-drv`, ECM, NSS qdiscs, and ath11k offload) to run alongside the upstream `stmmac` ethernet driver on Linux 6.18 without vendor DP/SSDK blobs.
 
-The tree is a fork of Julius Bairaktaris's `nss-edma-rework`: OpenWrt main
-with the vendor NSS stack (`qca-nss-drv`, ECM, the NSS qdiscs, ath11k
-offload) on the upstream `qca_edma` and `qca_ppe` drivers of IPQ807x and
-IPQ60xx. The IPQ5018 port is layered on it. The idea is the same, the
-ethernet driver and the glue module are different.
+This fork optimizes and trims that work specifically for the Linksys MX router architecture.
 
-In October 2026 that project became
-[PPE-NSS](https://github.com/JuliusBairaktaris/openwrt-ppe-nss): NSS offload
-without the vendor stack, with the wired traffic in the hardware PPE. Its
-vendor-stack line is archived. IPQ5018 has no PPE, and its wired
-acceleration is the NSS firmware itself, so this branch stays on the vendor
-stack and carries that line by itself from here on. There is no upstream of
-it left to sync with. The base is `nss-edma-rework` as it was archived under
-the `vendor-nss-archive` tag, which sits on OpenWrt main of 9 October 2026.
+---
 
-The IPQ807x and IPQ60xx parts of that line are still in the tree as they
-were, but nothing here builds or tests them. For those SoCs use
-[openwrt-ppe-nss](https://github.com/JuliusBairaktaris/openwrt-ppe-nss).
+## What This Fork Does
 
-## Branches
+### 1. Hardware-Specific Focus (Linksys MX / IPQ5018)
+- **Targeted Compilation**: Builds exclusively for `linksys_spnmx56` and `linksys_mx2000` using the 512 MB `std` memory group.
+- **QCN9074 Firmware Memory Mode 1 (SPNMX56)**: Configures the discrete PCIe 5 GHz radio (`ipq5018-spnmx56.dts`) to run in memory mode 1, reducing host DMA reservation from ~45 MB to ~20.9 MB while maintaining full 160 MHz throughput and client capacity.
+- **CPU Boost**: Retains the 1.296 GHz CPU operating point (`0974-arm64-dts-qcom-ipq5018-let-the-CPU-boost-to-1296-MHz.patch`).
 
-| Branch | What |
-|---|---|
-| `c3po-tag-8021q` | The default branch. Pull requests go here. |
-| `ipq50xx-rebase` | Frozen on 2026-09-17. It proved that the offload works with the upstream ethernet driver. |
-| `ipq50xx-nss` | Archive of the series before the rebase. |
-| `julius-archive/vendor-nss-archive` | The base of the default branch: `nss-edma-rework` at its `vendor-nss-archive` tag. |
-| `julius-archive/nss-edma-rework` | The final state of `nss-edma-rework`, with its archive notice. |
-| `julius-archive/nss-edma-7.3-vendor-20261011` | The vendor stack with the 7.3 testing kernel. |
+### 2. Lean Kernel & Driver Pruning
+- **Diagnostic Bloat Removed**: Production kernel stripped of heavy development debug instrumentation (`CONFIG_SLUB_DEBUG_ON`, `CONFIG_DEBUG_KMEMLEAK`, `CONFIG_PAGE_OWNER`, `CONFIG_DYNAMIC_DEBUG`) while enabling `/proc/config.gz` (`CONFIG_IKCONFIG=y`, `CONFIG_IKCONFIG_PROC=y`) for live inspection.
+- **Unused Peripherals Pruned**:
+  - **No USB / Block Storage**: SPNMX56 and MX2000 do not support USB data storage (SPNMX56's port is factory power-only; MX2000 has none). Removed `kmod-usb3`, `kmod-usb-dwc3`, `e2fsprogs`, `kmod-fs-ext4`, and `losetup`.
+  - **Bluetooth Disabled**: Factory firmware only used BLE for initial mobile-app onboarding during mesh pairing. OpenWrt manages Wi-Fi mesh natively via `wpad-mesh-mbedtls` (802.11s), rendering in-kernel Bluetooth drivers obsolete.
+  - **Switch & Bus Cleanups**: Removed drivers for SPI-NOR, MMC/SDHCI, GPIO LEDs (`kmod-leds-gpio`), and Realtek switches (`kmod-rtl8367s-nss`). Both boards communicate with the switch fabric through `kmod-qca8337-nss`.
 
-The feed has the matching branches (`julius-archive/vendor-nss-archive`,
-`julius-archive/edma-nss`, `julius-archive/edma-nss-7.3-feed-20261011`) and
-a copy of the pinned source archives in its `nss-source-tarballs` release.
-[kuncy7/mac80211-nss-staging](https://github.com/kuncy7/mac80211-nss-staging)
-is a fork of the repository the mac80211 NSS patch series was exported
-from. The `julius-archive` branches are kept as they were and take no
-changes.
+### 3. Integrated Userland & Clean TLS
+- **Single TLS Stack**: Uses `mbedtls` across the entire system (`wpad-mesh-mbedtls` and `luci-ssl`), avoiding duplicate OpenSSL libraries in SquashFS.
+- **Baked Packages**: Pre-installs `luci`, `luci-ssl`, `luci-app-nss`, `luci-app-firewall`, `luci-app-usteer`, `usteer`, `luci-app-advanced-reboot`, `luci-app-https-dns-proxy`, `https-dns-proxy`, `umdns`, `rpcd-mod-rrdns`, `sqm-scripts-nss`, `tc-full`, `ip-full`, `iperf3`, and `dumpimage`.
 
-## Building
+---
+
+## Supported Devices
+
+| Model | SoC | Switch | 2.4 GHz Radio | 5 GHz Radio | Sysupgrade Image |
+|---|---|---|---|---|---|
+| **Linksys SPNMX56** | IPQ5018 (2x A53 @ 1.3 GHz) | QCA8337 | QCN6122 (AHB, 2x2) | QCN9074 (PCIe, 4x4, 160 MHz) | `openwrt-qualcommax-ipq50xx-linksys_spnmx56-squashfs-sysupgrade.bin` |
+| **Linksys MX2000** | IPQ5018 (2x A53 @ 1.3 GHz) | QCA8337 | QCN6122 (AHB, 2x2) | QCN6122 (AHB, 2x2, 160 MHz) | `openwrt-qualcommax-ipq50xx-linksys_mx2000-squashfs-sysupgrade.bin` |
+
+---
+
+## Upgrading
+
+Download the matching sysupgrade image from the [Releases page](https://github.com/guilhermp/openwrt-nss-edma/releases) and flash over a running OpenWrt installation:
 
 ```sh
-git clone https://github.com/kuncy7/openwrt-nss-edma.git
-cd openwrt-nss-edma
-./scripts/feeds update -a && ./scripts/feeds install -a
-make menuconfig   # qualcommax/ipq50xx, nss-tools-dwmac as <*>
-make -j$(nproc)
+sysupgrade -v /tmp/openwrt-qualcommax-ipq50xx-<device>-squashfs-sysupgrade.bin
 ```
 
-The *Quick start* section of [README.ipq50xx.md](README.ipq50xx.md) has the
-details and the checks worth doing on a fresh image.
+Kernel module packages are indexed on this repository's GitHub Pages feed:
 
-## Acknowledgements
-
-- [Julius Bairaktaris](https://github.com/JuliusBairaktaris) for the tree
-  this is layered on, and for the idea of running NSS on the upstream
-  drivers. His work can be supported through
-  [GitHub Sponsors](https://github.com/sponsors/JuliusBairaktaris) or
-  [PayPal](https://paypal.me/JuliusBairaktaris).
-- [George Moussalem](https://github.com/georgemoussalem) for the ipq50xx
-  target and the upstream stmmac and uniphy conversion.
-- [Robert Marko (robimarko)](https://github.com/robimarko) for maintaining the
-  OpenWrt qualcommax target.
-- [qosmio](https://github.com/qosmio/openwrt-ipq) for the NSS packaging and
-  firmware tarballs the feed builds on.
-- Qualcomm and CodeLinaro for the open-source NSS host components.
-
-The people who tested, reported and contributed boards are named in
-[README.ipq50xx.md](README.ipq50xx.md).
-
-## License
-
-GPL-2.0, see [LICENSE](LICENSE). The NSS components keep their upstream
-licenses.
+```text
+https://guilhermp.github.io/openwrt-nss-edma/<release-tag>/std/packages.adb
+```
