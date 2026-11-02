@@ -30,7 +30,7 @@ This fork optimizes and trims that work specifically for the Linksys MX router a
 
 ### 3. Integrated Userland & Clean TLS
 - **Single TLS Stack**: Uses `mbedtls` across the entire system (`wpad-mesh-mbedtls` and `luci-ssl`), avoiding duplicate OpenSSL libraries in SquashFS.
-- **Baked Packages**: Pre-installs `luci`, `luci-ssl`, `luci-app-nss`, `luci-app-firewall`, `luci-app-usteer`, `usteer`, `luci-app-advanced-reboot`, `luci-app-https-dns-proxy`, `https-dns-proxy`, `umdns`, `rpcd-mod-rrdns`, `sqm-scripts-nss`, `tc-full`, `ip-full`, `iperf3`, and `dumpimage`.
+- **Baked Packages**: Standard stock LuCI plus `luci-app-nss` and the NSS core suite (`nss-tools-dwmac`, `sqm-scripts-nss`, `tc-full`, `ip-full`).
 
 ---
 
