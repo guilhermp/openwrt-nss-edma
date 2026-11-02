@@ -350,7 +350,9 @@ define Device/linksys_mx2000
 	DEVICE_MODEL := MX2000
 	DEVICE_DTS_CONFIG := config@mp03.5-c1
 	DEVICE_PACKAGES := ath11k-firmware-ipq5018-qcn6122 \
-		ipq-wifi-linksys_mx2000
+		ipq-wifi-linksys_mx2000 \
+		-kmod-usb3 -kmod-usb-dwc3 -kmod-usb-dwc3-qcom \
+		-e2fsprogs -kmod-fs-ext4 -losetup -kmod-leds-gpio
 endef
 TARGET_DEVICES += linksys_mx2000
 
@@ -390,7 +392,9 @@ define Device/linksys_spnmx56
 	DEVICE_PACKAGES := ath11k-firmware-ipq5018-qcn6122 \
 		kmod-ath11k-pci \
 		ath11k-firmware-qcn9074 \
-		ipq-wifi-linksys_spnmx56
+		ipq-wifi-linksys_spnmx56 \
+		-kmod-usb3 -kmod-usb-dwc3 -kmod-usb-dwc3-qcom \
+		-e2fsprogs -kmod-fs-ext4 -losetup -kmod-leds-gpio
 endef
 TARGET_DEVICES += linksys_spnmx56
 
