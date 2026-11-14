@@ -581,7 +581,10 @@ define Device/linksys_spnmx56
 	DEVICE_PACKAGES := ath11k-firmware-ipq5018-qcn6122 \
 		kmod-ath11k-pci \
 		ath11k-firmware-qcn9074 \
-		ipq-wifi-linksys_spnmx56
+		ipq-wifi-linksys_spnmx56 \
+		https-dns-proxy \
+		luci-app-https-dns-proxy \
+		iperf3
 endef
 TARGET_DEVICES += linksys_spnmx56
 
